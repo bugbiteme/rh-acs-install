@@ -9,21 +9,26 @@ metadata:
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
-  name: rhacs-operator-group
+  annotations:
+    olm.providedAPIs: Central.v1alpha1.platform.stackrox.io,SecuredCluster.v1alpha1.platform.stackrox.io,SecurityPolicy.v1alpha1.config.stackrox.io
+  name: rhacs-operator
   namespace: rhacs-operator
 spec:
-  targetNamespaces:
-    - rhacs-operator
+  upgradeStrategy: Default
 ---
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
+  labels:
+    operators.coreos.com/rhacs-operator.rhacs-operator: ""
   name: rhacs-operator
   namespace: rhacs-operator
 spec:
-  channel: latest
+  channel: stable
+  installPlanApproval: Automatic
   name: rhacs-operator
   source: redhat-operators
   sourceNamespace: openshift-marketplace
-  installPlanApproval: Automatic
+  startingCSV: rhacs-operator.v4.9.0
+
 
