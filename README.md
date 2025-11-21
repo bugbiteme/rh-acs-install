@@ -64,8 +64,10 @@ Monitor the Central deployment:
 ```bash
 oc get pods -n stackrox
 ```
+
+Or watch all resources:
 ```bash
-watch oc get pvc,deploy,svc,route
+watch oc get pvc,deploy,svc,route -n stackrox
 ```
 
 `scanner-db` will take the longest to initialize (~5+ minutes)
@@ -92,7 +94,7 @@ Output:
 ...
 ```
 
-### Step 4: Log in to the RHACS portal as the admin user
+### Step 5: Log in to the RHACS portal as the admin user
 
 Retrieve the admin user's password from the central-htpasswd secret
 
@@ -148,47 +150,148 @@ oc scale deploy scanner-v4-matcher --replicas=1
 # but usually just replica cuts are enough.
 ```
 
-## Configuration Steps
+## Securing Clusters
 
-At this point we have a Central cluster, but no secured clusters being managed. Let's start by importing the central cluster first, then import a second cluster.
+After Central is deployed and accessible, you can secure additional clusters. This process involves:
+1. Creating a cluster init bundle from the Central UI
+2. Applying the init bundle to the cluster you want to secure
+3. Deploying a SecuredCluster custom resource
 
-From the ACS console, under `Platform Configuration`->`Clusters`, click the `Init bundles` button.  
-  
-From the Cluster init bundles page, click `Create bundle`.  
-   
-Provide a name (ex. `install-import`), select `OpenShift` and click `Download`
+### Step 1: Create Cluster Init Bundle
 
-This will download a file to your local system called `install-import-Operator-secrets-cluster-init-bundle.yaml`
+From the ACS console, navigate to `Platform Configuration` → `Clusters`, then click the `Init bundles` button.
 
-Do not close the window.
+From the Cluster init bundles page, click `Create bundle`.
 
-From the command line:
+Provide a name (e.g., `install-import`), select `OpenShift`, and click `Download`.
+
+This will download a file to your local system called `install-import-Operator-secrets-cluster-init-bundle.yaml`.
+
+**Important:** Keep this file secure as it contains authentication credentials for connecting clusters to Central.
+
+### Step 2: Secure the Central Cluster (Self-Management)
+
+To have Central manage itself as a secured cluster, apply the init bundle and SecuredCluster resource on the Central cluster:
 
 ```bash
-mv ~/Downloads/install-import-Operator-secrets-cluster-init-bundle.yaml .
+# Apply the init bundle secrets
+oc apply -f install-import-Operator-secrets-cluster-init-bundle.yaml
 
-oc apply -f install-import-Operator-secrets-cluster-init-bundle.yaml 
+# Deploy the SecuredCluster resource for the central cluster
+oc apply -k k8/secured-cluster/base/
 ```
 
-While logged into the central cluster, apply the following to have it added as a secured cluster.
-
-Example output
+Expected output when applying the init bundle:
 ```
 secret/collector-tls created
 secret/sensor-tls created
 secret/admission-control-tls created
 ```
 
-Create add the cluster to central (this can be done with the operator)
-```bash
-oc apply -k k8/secured-cluster  
-```
+Eventually, the cluster will show up in ACS as `Healthy` and `Up to date with Central`.
 
-Eventually, the cluster will show up in ACS as `Healthy` and `Up to date with Central`
+### Step 3: Secure Additional Clusters
+
+To secure additional clusters (managed clusters), you need to install the ACS operator and deploy a SecuredCluster resource on each cluster.
+
+**Note:** This process can be automated with ACM (Advanced Cluster Management) policies, which is out of scope for this guide.
+
+#### On Each Managed Cluster:
+
+1. **Log in to the managed cluster:**
+   ```bash
+   oc login -u admin -p <password> https://api.<domain-of-managed-cluster>.com:6443
+   ```
+
+2. **Install the RHACS Operator:**
+   ```bash
+   oc apply -k k8/operators/
+   ```
+   
+   Wait for the operator to be ready:
+   ```bash
+   oc get pods -n rhacs-operator
+   ```
+
+3. **Create the `stackrox` namespace:**
+   ```bash
+   oc apply -f k8/central/namespace.yaml
+   ```
+
+4. **Apply the init bundle (downloaded in Step 1):**
+   ```bash
+   oc apply -f install-import-Operator-secrets-cluster-init-bundle.yaml -n stackrox
+   ```
+
+5. **Deploy the SecuredCluster resource:**
+   
+   For the first managed cluster, edit the overlay file:
+   ```bash
+   # Edit the managed-cluster.yaml file
+   vi k8/secured-cluster/overlays/secured-cluster01/managed-cluster.yaml
+   ```
+   
+   Update the `centralEndpoint` with your Central cluster's endpoint:
+   - Use the same hostname as the Central UI route
+   - Remove the `https://` prefix
+   - Add `:443` port
+   
+   Example:
+   ```yaml
+   apiVersion: platform.stackrox.io/v1alpha1
+   kind: SecuredCluster
+   metadata:
+     name: stackrox-secured-cluster-services
+     namespace: stackrox
+   spec:
+     clusterName: secured-cluster01
+     # Update with your central cluster endpoint (route hostname + :443)
+     centralEndpoint: central-stackrox.apps.cluster-8cj8w.8cj8w.sandbox3260.opentlc.com:443
+   ```
+   
+   Then apply it:
+   ```bash
+   oc apply -f k8/secured-cluster/overlays/secured-cluster01/managed-cluster.yaml
+   ```
+   
+   For additional clusters, you can:
+   - Use the `secured-cluster02` overlay directory
+   - Create a new overlay following the same pattern
+   - Or directly apply a customized SecuredCluster YAML
+
+6. **Monitor the deployment:**
+   ```bash
+   oc get pods -n stackrox
+   oc get pvc,deploy,svc,route -n stackrox
+   ```
+   
+   **Note:** The full deployment might be resource-intensive for Single Node OpenShift (SNO) clusters. Monitor resource usage and scale down components if needed (see resource scaling section above).
+
 
 ## Directory Structure
-- `k8/operators/kustomization.yaml` - Kustomize configuration for operator resources
-- `k8/operators/acs.yaml` - Operator installation manifest
-- `k8/central/kustomization.yaml` - Kustomize configuration for Central resources
-- `k8/central/namespace.yaml` - StackRox namespace definition
-- `k8/central/central.yaml` - Central component deployment manifest
+
+```
+k8/
+├── operators/
+│   ├── kustomization.yaml          # Kustomize config for operator resources
+│   ├── acs.yaml                     # ACS operator installation manifest
+│   └── compliance-operator.yaml     # Compliance operator namespace and subscription
+├── central/
+│   ├── kustomization.yaml           # Kustomize config for Central resources
+│   ├── namespace.yaml                # StackRox namespace definition
+│   └── central.yaml                  # Central component deployment manifest
+└── secured-cluster/
+    ├── base/                         # Base SecuredCluster configuration
+    │   ├── kustomization.yaml
+    │   └── secured-cluster.yaml      # Base SecuredCluster CR (clusterName: central-cluster)
+    └── overlays/                      # Overlays for different managed clusters
+        ├── secured-cluster01/
+        │   └── managed-cluster.yaml  # SecuredCluster for first managed cluster
+        └── secured-cluster02/        # Overlay directory for second managed cluster
+```
+
+### Usage Notes
+
+- **Base configuration**: Use `k8/secured-cluster/base/` to deploy a SecuredCluster on the Central cluster itself
+- **Overlays**: Use overlay directories for managed clusters with different cluster names and central endpoints
+- **Kustomize**: All directories support `oc apply -k` for applying resources

@@ -5,3 +5,4 @@ metadata:
   namespace: stackrox
 spec:
   clusterName: central-cluster
+

@@ -1,0 +1,9 @@
+apiVersion: platform.stackrox.io/v1alpha1
+kind: SecuredCluster
+metadata:
+  name: stackrox-secured-cluster-services
+  namespace: stackrox
+spec:
+  clusterName: managed-cluster01
+  # update with your central cluster endpoint
+  centralEndpoint: central-stackrox.apps.cluster-q7g84.q7g84.sandbox1752.opentlc.com:443
