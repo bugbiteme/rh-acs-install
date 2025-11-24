@@ -19,16 +19,11 @@ First, install the Red Hat Advanced Cluster Security operator on your central cl
 oc apply -k k8/operators/
 ```
 
-Alternatively, you can apply the file directly:
-
-```bash
-oc apply -f k8/operators/acs.yaml
-```
-
 This will:
 - Create the `rhacs-operator` namespace
 - Create an OperatorGroup for the namespace
 - Subscribe to the `rhacs-operator` from the Red Hat operators catalog
+- Subscribe to the  `openshift-compliance` operator (and create respective namespace).
 
 ### Step 2: Wait for Operator Installation
 Wait for the operator to be fully installed and ready. You can check the status with:
@@ -44,13 +39,6 @@ Once the operator is ready, create the Central component:
 
 ```bash
 oc apply -k k8/central/
-```
-
-Alternatively, you can apply the files individually:
-
-```bash
-oc apply -f k8/central/namespace.yaml
-oc apply -f k8/central/central.yaml
 ```
 
 This will:
@@ -77,7 +65,7 @@ The Central component will take several minutes to fully deploy. Once all pods a
 To check the status of the Central instance via the CLI
 
 ```bash
-oc get central stackrox-central-services -o jsonpath-as-json='{.status.conditions}'
+oc get central stackrox-central-services -o jsonpath-as-json='{.status.conditions}' -n stackrox
 ```
 
 Output:
@@ -99,7 +87,7 @@ Output:
 Retrieve the admin user's password from the central-htpasswd secret
 
 ```bash
-oc extract secret/central-htpasswd \
+oc -n stackrox extract secret/central-htpasswd \
   --keys password --to -
 ```
 
@@ -111,7 +99,7 @@ UIooqQXXrcxX0mzDuYUPCo6uX
 Retrieve the URL of the RHACS portal from the central route
 
 ```bash
-oc get route central -n stackrox -o jsonpath='https://{.spec.host}'
+oc -n stackrox get route central -o jsonpath='https://{.spec.host}'
 ```
 
 Example Output:
@@ -175,7 +163,7 @@ To have Central manage itself as a secured cluster, apply the init bundle and Se
 
 ```bash
 # Apply the init bundle secrets
-oc apply -f install-import-Operator-secrets-cluster-init-bundle.yaml
+oc -n stackrox apply -f install-import-Operator-secrets-cluster-init-bundle.yaml
 
 # Deploy the SecuredCluster resource for the central cluster
 oc apply -k k8/secured-cluster/base/
