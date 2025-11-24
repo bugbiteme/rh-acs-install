@@ -5,5 +5,6 @@ metadata:
   namespace: stackrox
 spec:
   clusterName: managed-cluster01
-  # update with your central cluster endpoint
-  centralEndpoint: central-stackrox.apps.cluster-k57xg.k57xg.sandbox1580.opentlc.com:443
+  # Update with your central cluster endpoint (route hostname + :443)
+  # Example: central-stackrox.apps.<cluster-domain>:443
+  centralEndpoint: central-stackrox.apps.<cluster-domain>:443

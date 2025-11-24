@@ -104,7 +104,7 @@ oc -n stackrox get route central -o jsonpath='https://{.spec.host}'
 
 Example Output:
 ```
-https://central-stackrox.apps.cluster-8cj8w.8cj8w.sandbox3260.opentlc.com
+https://central-stackrox.apps.<cluster-domain>
 ```
 
 log in with `admin` and the extracted password
@@ -234,7 +234,7 @@ To secure additional clusters (managed clusters), you need to install the ACS op
    spec:
      clusterName: secured-cluster01
      # Update with your central cluster endpoint (route hostname + :443)
-     centralEndpoint: central-stackrox.apps.cluster-8cj8w.8cj8w.sandbox3260.opentlc.com:443
+     centralEndpoint: central-stackrox.apps.<cluster-domain>:443
    ```
    
    Then apply it:
