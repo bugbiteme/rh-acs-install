@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: acs-operators
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/bugbiteme/rh-acs-install
+    targetRevision: main
+    path: k8/operators
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: rhacs-operator
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  revisionHistoryLimit: 3
+  # Ensure RBAC is deployed first
+  dependsOn:
+    - name: acs-rbac
+
